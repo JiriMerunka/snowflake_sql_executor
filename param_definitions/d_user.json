@@ -1,0 +1,61 @@
+{
+    "tgt_table_name": "d_user",
+    "source_mode": "full",
+    "historization_type": "scd_2",
+    "table_type": "dimension_table",
+  
+    "pks": [
+        {"name": "user_pk", "type": "BIGINT IDENTITY(1,1)"}
+    ],
+    
+    "keys": [
+        {"name": "user_hash", "type": "VARCHAR(255)"},       
+        {"name": "_sys_valid_from", "type": "TIMESTAMP"},
+        {"name": "_sys_valid_to", "type": "TIMESTAMP"}
+    ],
+    
+    "fields": [
+        {"name": "org_hash", "type": "VARCHAR(255)"},
+        {"name": "user_id", "type": "VARCHAR(255)"},
+        {"name": "user_email", "type": "VARCHAR(255)"},
+        {"name": "user_type", "type": "VARCHAR(255)"},
+        {"name": "user_group", "type": "VARCHAR(255)"}
+  
+    ],
+    
+    "ind_src_fields": [
+        {"name": "new_ind", "type": "BOOLEAN"},
+        {"name": "track_ind", "type": "BOOLEAN"}
+  
+    ],
+  
+    "sys_scd_1_fields": [
+      {"name": "_sys_id", "type": "VARCHAR(40)"},
+      {"name": "_sys_hash", "type": "VARCHAR(32)"},
+      {"name": "_sys_updated_at", "type": "TIMESTAMP"},
+      {"name": "_sys_is_deleted", "type": "BOOLEAN"}
+      
+      
+    ],
+    "sys_scd_2_fields": [
+      {"name": "_sys_id", "type": "VARCHAR(40)"},
+      {"name": "_sys_hash", "type": "VARCHAR(32)"},
+      {"name": "_sys_updated_at", "type": "TIMESTAMP"},
+      {"name": "_sys_is_deleted", "type": "BOOLEAN"},
+      {"name": "a_sys_valid_from", "type": "TIMESTAMP"},
+      {"name": "a_sys_valid_to", "type": "TIMESTAMP"},
+      {"name": "_sys_is_current", "type": "BOOLEAN"}
+
+  
+    ],
+  
+    "transaction_date": "current_timestamp",
+    "_sys_valid_from": "a_sys_valid_from",
+    "_sys_valid_to": "a_sys_valid_to",
+
+    "allocation_date": "date"
+
+
+
+  }
+  

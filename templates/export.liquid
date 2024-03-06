@@ -1,0 +1,15 @@
+COPY INTO '<export_to_s3_dir>/{{ table_name }}.csv'
+FROM ({{sql}})
+FILE_FORMAT = (
+  TYPE = CSV,
+  ESCAPE = '\\'
+  COMPRESSION = NONE,
+  FIELD_DELIMITER = ',',
+  FIELD_OPTIONALLY_ENCLOSED_BY = '\"'
+  NULL_IF = 'NULL'
+  SKIP_HEADER = 0
+
+)
+SINGLE=TRUE MAX_FILE_SIZE=5000000000 -- removes '0_1_0' suffix from filename
+HEADER = TRUE
+OVERWRITE = TRUE;

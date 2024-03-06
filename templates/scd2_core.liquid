@@ -1,0 +1,249 @@
+{%- comment -%}
+{%- assign _sys_hub_id = {{_sys_hub_id}} | default: "_sys_hub_id" -%}
+{%- assign _sys_captured_at = {{_sys_captured_at}} | default: "_sys_captured_at" -%}
+{%- assign _sys_filename = {{_sys_filename}} | default: "_sys_filename" -%}
+{%- assign _sys_load_id = {{_sys_load_id}} | default: "_sys_load_id" -%}
+{%- assign _sys_hash = {{_sys_hash}} | default: "_sys_hash" -%}
+{%- endcomment -%}
+
+
+{%- assign is_deleted_field = {{is_deleted_field}} | default: "_sys_is_deleted" -%}
+{%- assign _sys_valid_from = {{_sys_valid_from}} | default: "_sys_valid_from" -%}
+{%- assign _sys_valid_to = {{_sys_valid_to}} | default: "_sys_valid_to" -%}
+{%- assign _sys_is_current = {{_sys_is_current}} | default: "_sys_is_current" -%}
+{%- assign hash_field = {{hash_field}} | default: "_sys_hash" -%}
+{%- assign updated_at_field = {{updated_at_field}} | default: "_sys_updated_at" -%}
+
+
+{%- assign transaction_date = {{transaction_date}} | default: "current_timestamp" -%}
+{%- assign track_ind = {{track_ind}} | default: "track_ind" -%}
+{%- assign new_ind = {{new_ind}} | default: "new_ind" -%}
+
+
+{%- comment -%}
+{%- endcomment -%}
+{%- assign all_fields = keys | concat: fields -%}
+{%- comment -%}
+{%- endcomment -%}
+{%- assign all_fields = {{all_fields|uniq}} -%}
+{%- assign consolidate_without_sys_hash = {{consolidate_without_sys_hash}} | default: "false" %}
+{%- assign historization_type = {{historization_type}} | default: "scd_1" -%}
+{%- assign wrk_tgt_table_name = "wrk_" | append: tgt_table_name -%}
+{%- assign wrk_tgt_table_name_diff = wrk_tgt_table_name | append: "_diff" -%}
+
+{%- assign ee = "=" -%}
+
+{%- if consolidate_without_sys_hash == 'false' -%}
+{%- assign consolidate_keys = keys -%}
+{%- else -%}
+{%- assign consolidate_keys = all_fields -%}
+{%- assign ee = "<=>" %}
+{%- endif -%}
+
+{% capture newLine %}
+{% endcapture %}
+
+
+
+{%- comment -%}
+Default mode assumes INC transformation done into WRK table.
+Available values: ["full","inc"]
+Default integration with sys_hash 
+Available values: ["false","true"]
+Default ee value is "=", without _sys_hash we use NULL safe egual sign
+Default historization_type: scd_1
+Available values: ["scd_1","scd_2"]
+In order to create snap shots you can use partial full load array
+{%- endcomment -%}
+------------------------------------------------------------------
+/* source_mode: {{source_mode}} */
+/* consolidate_without_sys_hash: {{consolidate_without_sys_hash}} */
+/* historization_type: {{historization_type}} */
+/* partial_full_load:  {% for field in partial_full_load -%} {{ field }} {%- unless forloop.last %}
+                      ,{% endunless %}{% endfor %} */
+/* {{tgt_table_name}} */
+------------------------------------------------------------------
+--0 fill wrk_diff_stg table
+DROP TABLE IF EXISTS {{wrk_tgt_table_name_diff}}_stg;
+CREATE LOCAL TEMP TABLE {{wrk_tgt_table_name_diff}}_stg
+AS (
+    SELECT
+        {% for all_field in all_fields %}"{{ all_field['name'] | upcase}}"{% unless forloop.last %} 
+        ,{% endunless %}{% endfor %}
+        {% if {(keys.first)} %}
+        ,SHA1 (
+            {% for key in keys %} COALESCE(("{{ key['name'] | upcase}}" {%- unless forloop.last -%} )::VARCHAR(8192),'') || '|' ||
+            {% endunless %} {% endfor %})::VARCHAR(8192),'')
+            )  
+        {%- else -%}
+        ,CAST('' AS VARCHAR(255))
+        {%- endif -%} 
+        {{ newLine }}
+        AS _sys_id
+        {% if {(fields.first)} %}
+        ,MD5 (
+            {% for field in fields %} COALESCE(({% if field.type == 'BOOLEAN'-%} CAST("{{ field['name'] | upcase}}" AS INTEGER) {%- else -%} "{{ field['name'] | upcase}}" {%- endif -%}{%- unless forloop.last -%} )::VARCHAR(8192),'') || '|' ||
+            {% endunless %} {% endfor %})::VARCHAR(8192),'')
+            )  
+        {%- else -%}
+        ,CAST('' AS VARCHAR(255))
+        {%- endif -%} 
+        {{ newLine }}
+        AS _sys_hash
+    FROM {{wrk_tgt_table_name }}
+    )
+;
+
+
+--1 fill wrk_diff table
+DROP TABLE IF EXISTS {{wrk_tgt_table_name_diff}};
+CREATE LOCAL TEMP TABLE {{wrk_tgt_table_name_diff}}
+AS
+(
+SELECT
+     s.* 
+    ,CASE WHEN c._sys_id IS NULL THEN true ELSE false END AS new_ind
+    ,CASE WHEN c._sys_id IS NOT NULL AND s._sys_hash <> c._sys_hash THEN true ELSE false END AS track_ind
+ FROM {{wrk_tgt_table_name_diff}}_stg s
+LEFT JOIN {{ tgt_table_name }} c ON s._sys_id = c._sys_id
+AND c.{{is_deleted_field}} = false 
+{{ newLine }}
+{%- if historization_type == 'scd_2' -%}
+AND c.{{_sys_is_current}} = true
+{%- endif -%} 
+
+)
+;
+
+
+
+DROP TABLE IF EXISTS {{wrk_tgt_table_name}};
+DROP TABLE IF EXISTS {{wrk_tgt_table_name_diff}}_stg;
+------------------------------------------------------------------
+--2  merge changes to dim customer
+BEGIN TRANSACTION;
+
+{{ newLine }}
+{%- if source_mode == 'full' -%}
+
+-- close(scd_2)/delete(scd_1) record not in staging data (full load only) 
+UPDATE {{ tgt_table_name }}
+{{ newLine }}
+{%- if historization_type == 'scd_2' -%}
+SET {{_sys_is_current}}  = false,
+    {{_sys_valid_to}}  = {{transaction_date}} - interval '1 second',
+    {{updated_at_field}} = current_timestamp
+{%- endif -%}
+{%- if historization_type == 'scd_1' -%}
+SET {{is_deleted_field}} = true,
+    {{updated_at_field}} = current_timestamp
+{%- endif -%}
+{{ newLine }}
+WHERE _sys_id IN
+(
+    SELECT c._sys_id
+    FROM
+    (
+        SELECT _sys_id
+        FROM {{ tgt_table_name }}
+        WHERE {{is_deleted_field}} = false
+        {{ newLine }}
+        {%- if historization_type == 'scd_2' -%}
+        AND {{_sys_is_current}} = true
+        {%- endif -%} 
+    ) c
+    LEFT JOIN {{wrk_tgt_table_name_diff}} s ON  s._sys_id = c._sys_id
+    WHERE s._sys_id IS NULL
+)
+AND {{is_deleted_field}} = false
+{{ newLine }}
+{%- if historization_type == 'scd_2' -%}
+AND {{_sys_is_current}} = true
+{%- endif -%} 
+
+{{ newLine }}
+{%- if table_type == 'dimension_table' -%}
+AND _sys_hash <> 'unknown_record' -- do not delete unknown_record
+{%- endif -%}
+{{ newLine }}
+;
+{%- endif -%}
+
+-- delete from staging data unchanged rows
+DELETE
+FROM {{wrk_tgt_table_name_diff}}
+WHERE {{track_ind}} = false AND {{new_ind}} = false;
+
+-- close current type 2 active record based of staging data where change indicator is 1
+UPDATE {{ tgt_table_name }} c
+
+SET {{updated_at_field}} = current_timestamp,
+{{ newLine }}
+{%- if historization_type == 'scd_2' -%}
+    {{_sys_valid_to}}  = {{transaction_date}} - interval '1 second',--stg_effective_dt - interval '1 second',
+    {{_sys_is_current}} = false
+{%- else -%}
+    {% if {(fields.first)} %}{% for field in fields %}"{{ field['name'] | upcase}}" = s."{{ field['name'] | upcase}}"{% unless forloop.last %},{% endunless %}{% endfor %},{%- endif -%}
+    _sys_hash = s._sys_hash
+    ,_sys_id = s._sys_id
+{%- endif -%}
+{{ newLine }}
+FROM {{wrk_tgt_table_name_diff}} s
+WHERE s._sys_id = c._sys_id
+{{ newLine }}
+AND c.{{is_deleted_field}} = false
+{{ newLine }}
+{%- if historization_type == 'scd_2' -%}
+AND c.{{_sys_valid_to}} = '2999-12-31' 
+{%- endif -%} 
+AND s.{{track_ind}} = true;
+
+{{ newLine }}
+-- create latest version type 2 active record from staging data
+-- this includes Changed + New records
+
+INSERT INTO {{ tgt_table_name }} (
+        {% for all_field in all_fields %}"{{ all_field['name'] | upcase}}"{% unless forloop.last %} 
+        ,{% endunless %}{% endfor %}
+        ,_sys_hash
+        ,_sys_id
+    {{ newLine }}
+    {%- if historization_type == 'scd_2' -%}
+        ,{{_sys_valid_from}}
+        ,{{_sys_valid_to}}
+        ,{{_sys_is_current}}
+    {%- endif -%}
+    {{ newLine }}
+        ,{{is_deleted_field}}
+        /* ,record_insert_ts */
+        ,{{updated_at_field}})
+
+SELECT
+    {% for all_field in all_fields %}"{{ all_field['name'] | upcase}}"{% unless forloop.last %} 
+    ,{% endunless %}{% endfor %}
+    ,_sys_hash
+    ,_sys_id
+{{ newLine }}
+{%- if historization_type == 'scd_2' -%}
+    ,{{transaction_date}} as {{_sys_valid_from}} --stg_effective_dt as _sys_valid_from
+    ,'2999-12-31' as {{_sys_valid_to}}
+    ,true as {{_sys_is_current}}
+{%- endif -%}
+{{ newLine }} 
+    ,false as {{is_deleted_field}}
+    --, current_timestamp as record_insert_ts,
+    ,current_timestamp as _sys_updated_at
+
+FROM {{wrk_tgt_table_name_diff}}
+WHERE {{new_ind}} = true
+{{ newLine }}
+{%- if historization_type == 'scd_2' -%}
+OR
+{{track_ind}}  = true 
+{%- endif -%}
+;
+
+COMMIT;
+
+
+DROP TABLE IF EXISTS {{wrk_tgt_table_name_diff}};

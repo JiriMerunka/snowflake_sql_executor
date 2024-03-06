@@ -1,0 +1,23 @@
+{
+    "src_table_name": "tmp_user",
+    "tgt_table_name": "wrk_d_user",
+
+    "src_table_type": "dimension_table",
+
+    "keys": [
+        {"name": "user_hash", "type": "VARCHAR(255)"}
+    ],
+    
+    "fields": [
+        {"name": "org_hash", "type": "VARCHAR(255)"},
+        {"name": "user_id", "type": "VARCHAR(255)"},
+        {"name": "user_email", "type": "VARCHAR(255)"},
+        {"name": "user_type", "type": "VARCHAR(255)"},
+        {"name": "user_group", "type": "VARCHAR(255)"}
+   ],
+ 
+    "date_field": "date"
+
+  }
+
+  

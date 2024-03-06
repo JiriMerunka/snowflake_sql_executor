@@ -1,0 +1,11 @@
+*.cpython-38.pyc*
+sql/core_dl_exec/**
+sql/core_dl_tmp/**
+sql/export_exec/**
+sql/export_tmp/**
+redshift_sql_executor/**
+redshift_sql_executor/templates/*
+*.pyc*
+.python-version
+__pycache__/
+/__pycache__/redshift_sql_executor.cpython-310.pyc

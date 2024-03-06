@@ -1,0 +1,39 @@
+{
+    "db_account": "db_account",
+    "db_user": "db_user",
+    "db_password": "db_password",
+    "db_warehouse": "db_warehouse",
+    "db_database": "db_database",
+    "db_schema": "db_schema",
+    
+    "db_port": "443",
+    "db_host": "db_host",
+    "sslmode": "verify-full",
+    "sslrootcert": "ssl/amazon-trust-ca-bundle.crt",
+   
+
+    "ruby_parser": "ruby_expand_template/RunLiquid.rb",
+
+    "params_dir": "param_definitions/",
+    "templates_dir": "templates/",
+    
+    "core_dl_dir": "sql/core_dl/",
+    "core_dl_tmp_dir": "sql/core_dl_tmp/",
+    "core_dl_exec_dir": "sql/core_dl_exec/",
+    
+    "export_dir": "sql/export/",
+    "export_tmp_dir": "sql/export_tmp/",
+    "export_exec_dir": "sql/export_exec/",
+
+    "export_to_s3_dir": "s3_export_dir",
+    "export_file_format": "FORMAT.PUBLIC.MELTANO_FORMAT",
+
+    "lq_create_table_core": "templates/create_table_core.liquid",
+    "lq_date_to_scd2": "templates/date_to_scd2.liquid",
+    "lq_scd2_core": "templates/scd2_core.liquid"
+
+
+    
+    
+
+}
